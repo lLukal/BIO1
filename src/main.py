@@ -36,7 +36,7 @@ def analyze(file_path, file_type):
       min_length = min(contig_lengths)
       avg_length = sum(contig_lengths) / len(contig_lengths)
       
-      sorted_lengths = sorted(contig_lengths, reverse=True)
+      sorted_lengths = sorted(contig_lengths, reverse=False)
       total_length = sum(sorted_lengths)
       half_total_length = total_length / 2
       cumulative_length = 0
@@ -44,6 +44,7 @@ def analyze(file_path, file_type):
         cumulative_length += length
         if cumulative_length >= half_total_length:
           n_50_length = length
+          break
       
       return len(contig_lengths), min_length, max_length, avg_length, n_50_length
 
