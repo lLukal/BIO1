@@ -2,7 +2,7 @@
 
 curl https://nanopore.s3.climb.ac.uk/MAP006-1_2D_pass.fasta > ./input/MAP006-1_2D_pass.fasta
 
-pip install biopython
+pip install -r ./src/requirements.txt
 
 # Or
 # conda install biopython
