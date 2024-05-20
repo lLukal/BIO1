@@ -1,85 +1,49 @@
+import multiprocessing as mp
 
-def reverse_complement(sequence):
-    """
-    Function to find the reverse complement of a DNA sequence.
+def reverse_complement(seq):
+  complement = {'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C'}
+  return ''.join(complement[base] for base in reversed(seq))
 
-    Parameters:
-    sequence (str): The DNA sequence to find the reverse complement of.
+def find_window_minimizer(args):
+  sequence, k, w, i, offset = args
+  window = sequence[i:i+w+k-1]
+  min_k_mer = window[:k]
+  min_pos = 0
+  min_strand = "original"
+  
+  for j in range(1, w - k + 1):
+    k_mer = window[j:j+k]
+    k_mer_rc = reverse_complement(k_mer)
+    
+    if k_mer < min_k_mer:
+      min_k_mer = k_mer
+      min_pos = j
+      min_strand = "original"
+    
+    if k_mer_rc < min_k_mer:
+      min_k_mer = k_mer_rc
+      min_pos = j
+      min_strand = "reverse_complement"
+  
+  return (min_k_mer, i + min_pos + offset, min_strand, k, w)
 
-    Returns:
-    str: The reverse complement of the input DNA sequence.
+def find_minimizers(sequence, k, w):
+  n = len(sequence)
+  indices = range(n - w - k + 2)
+  args = [(sequence, k, w, i,0) for i in indices]
 
-    """
-    # Dictionary to store the complement of each nucleotide
-    complement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A'}
+  with mp.Pool() as pool:
+    minimizers = pool.map(find_window_minimizer, args)
 
-    # Find the reverse complement by mapping each nucleotide to its complement, reversing the sequence, and joining the nucleotides
-    return ''.join(complement[base] for base in reversed(sequence))
-
-def kmer_to_uint(kmer):
-    """
-    Function to convert a kmer to an unsigned integer.
-
-    Parameters:
-    kmer (str): The kmer to convert.
-
-    Returns:
-    int: The unsigned integer representation of the kmer.
-    """
-    mapping = {'A': '00', 'C': '01', 'G': '10', 'T': '11'}
-    binary = ''.join(mapping[nucleotide] for nucleotide in kmer)
-    return int(binary, 2)
-     
-
-
-def Minimize(sequence,sequence_len,kmer_len, window_len):
-    """
-    Function to find minimizers in a given sequence.
-
-    Parameters:
-    sequence (str): The DNA sequence to find minimizers in.
-    kmer_len (int): The length of the k-mers to consider.
-    window_len (int): The length of the window to consider for finding minimizers.
-
-    Returns:
-    list: A list of tuples, where each tuple contains the hash of a minimizer, its position in the sequence, and a boolean indicating whether it comes from the original strand (True) or the reverse complement (False).
-
-    """
-
-    # List to store the minimizers
-    minimizers = []
-
-    for i in range(0, sequence_len - window_len + 1):
-
-        # Extract the current window from the sequence
-        window = sequence[i:i+window_len]
-
-        # Find the lexicographically smallest kmer in the current window
-        min_kmer = min(window[j:j+kmer_len] for j in range(window_len - kmer_len + 1))
-
-        # Compute the reverse complement of the smallest kmer
-        min_kmer_reverse = str(reverse_complement(min_kmer))
-
-        if min_kmer < min_kmer_reverse:
-            minimizers.append((kmer_to_uint(min_kmer),i,True))
-        else:
-            minimizers.append((kmer_to_uint(min_kmer_reverse),i,False))
-
-    # Return the list of minimizers
-    return minimizers
+  return minimizers
 
 
-def main():
-    sequence = "ATGCGATCGTACGTA"
-    sequence_len = len(sequence)
-    kmer_len = 3
-    window_len = 5
 
-    minimizers = Minimize(sequence, sequence_len, kmer_len, window_len)
-
-    for minimizer, pos, is_original_strand in minimizers:
-        strand = "original" if is_original_strand else "reverse complement"
-        print(f"Minimizer: {minimizer}, Position: {pos}, Strand: {strand}")
-
-if __name__ == "__main__":
-        main()
+# if __name__ == "__main__":
+#     sequence = "ACGTTGCAACGTTGCA"
+#     k = 3
+#     w = 5
+#     minimizers = find_minimizers(sequence, k, w)
+#     for minimizer in minimizers:
+#       print(f"Minimizer: {minimizer[0]}, Position: {minimizer[1]}, Origin: {minimizer[2]}, k: {minimizer[3]}, w: {minimizer[4]}")
+   
