@@ -1,11 +1,11 @@
 #!/bin/bash
 
 # Script version
-VERSION="1.1.0"
+VERSION="1.2.0"
 
 # Function to display help
 display_help() {
-    echo "Usage: $0 [option] --reference <reference_file> --fragments <fragments_file> [--debug]"
+    echo "Usage: $0 [option] --reference <reference_file> --fragments <fragments_file> [--cigar] [--threads <thread_num>] [--k <num>] [--w <num>] [--f <num>] [--debug]"
     echo
     echo "Options:"
     echo "  -h, --help        Display this help message and exit"
@@ -14,6 +14,11 @@ display_help() {
     echo "Arguments:"
     echo "  --reference       Path to the reference genome file (FASTA format)"
     echo "  --fragments       Path to the fragments file (FASTA or FASTQ format)"
+    echo "  --cigar           Include the CIGAR string in the output"
+    echo "  --threads         Number of threads to use"
+    echo "  --k               Value for parameter k"
+    echo "  --w               Value for parameter w"
+    echo "  --f               Value for parameter f"
     echo "  --debug           Enable debug mode in the Python script"
     echo
 }
@@ -26,6 +31,11 @@ fi
 
 # Initialize variables
 DEBUG_MODE=""
+CIGAR_FLAG=""
+THREADS=""
+K_VALUE=""
+W_VALUE=""
+F_VALUE=""
 
 # Parse command-line arguments
 while [[ "$#" -gt 0 ]]; do
@@ -56,6 +66,45 @@ while [[ "$#" -gt 0 ]]; do
                 exit 1
             fi
             ;;
+        --cigar)
+            CIGAR_FLAG="--cigar"
+            ;;
+        --threads)
+            if [ -n "$2" ]; then
+                THREADS="--threads $2"
+                shift
+            else
+                echo "Error: --threads requires a number."
+                exit 1
+            fi
+            ;;
+        --k)
+            if [ -n "$2" ]; then
+                K_VALUE="--k $2"
+                shift
+            else
+                echo "Error: --k requires a number."
+                exit 1
+            fi
+            ;;
+        --w)
+            if [ -n "$2" ]; then
+                W_VALUE="--w $2"
+                shift
+            else
+                echo "Error: --w requires a number."
+                exit 1
+            fi
+            ;;
+        --f)
+            if [ -n "$2" ]; then
+                F_VALUE="--f $2"
+                shift
+            else
+                echo "Error: --f requires a number."
+                exit 1
+            fi
+            ;;
         --debug)
             DEBUG_MODE="--debug"
             ;;
@@ -75,5 +124,5 @@ if [ -z "$REFERENCE_FILE" ] || [ -z "$FRAGMENTS_FILE" ]; then
     exit 1
 fi
 
-# Run the Python script with the provided files and debug mode if specified
-python3 ./src/main.py --reference "$REFERENCE_FILE" --fragments "$FRAGMENTS_FILE" $DEBUG_MODE
+# Run the Python script with the provided files and parameters
+python3 ./src/main.py --reference "$REFERENCE_FILE" --fragments "$FRAGMENTS_FILE" $CIGAR_FLAG $THREADS $K_VALUE $W_VALUE $F_VALUE $DEBUG_MODE
