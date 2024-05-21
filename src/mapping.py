@@ -60,13 +60,8 @@ def find_matches(fragment, k, w, f, minimizer_index, fragment_minimizers = None)
   return matches, rev_matches
   
 def longest_increasing_subsequence(matches):
-  # Sort matches by reference positions
-  matches.sort(key=lambda x: x[1])
-    
-  # Extract positions after sorting by reference positions
   positions = [match[0] for match in matches]
-      
-  # Find LIS based on positions
+
   n = len(positions)
   lis = []
   predecessors = [-1] * n
@@ -91,7 +86,6 @@ def longest_increasing_subsequence(matches):
   if not lis_indices:
     return []
   
-  # Reconstruct the LIS
   k = lis_indices[-1]
   lis = []
   while k != -1:

@@ -1,81 +1,48 @@
-import alignment
-
-import argparse
-import os
-import sys
-from Bio import SeqIO
+import mapping
+from misc import log, write_output, parse_arguments, load_file, analyze
+from visualization import plot_mapped_genome
 import datetime
-import time
 import random
 
+def align_fragment(fragment, reference_seq, minimizer_index, fragment_minimizers, k, w, f):
+  log('Finding matches...', 1)
+  matches, rev_matches = mapping.find_matches(fragment, k, w, f, minimizer_index, fragment_minimizers)
 
-debug = False
-def log(message, level=0):
-  if debug == True:
-    indent = ''
-    for _ in range(level):
-      indent += '\t'
-    print(f'{indent}{message}')
-    
-def write_output(message, output_filename='./output/output_temp.txt'):
-  with open(output_filename, 'a') as file:
-    file.write(str(message) + '\n')
-
-def parse_arguments():
-  parser = argparse.ArgumentParser(description="Process reference genome and fragments files.")
-  parser.add_argument('--reference', required=True, help="Path to the reference genome file (FASTA format).")
-  parser.add_argument('--fragments', required=True, help="Path to the fragments file (FASTA or FASTQ format).")
-  parser.add_argument('--debug', action='store_true', help="Enable debug mode.")
+  log('Finding longest increasing subsequence...', 1)
+  lis = mapping.longest_increasing_subsequence(matches)
+  log('Finding longest increasing subsequence (complement)...', 1)
+  rev_lis = mapping.longest_increasing_subsequence(rev_matches)
+  lis = lis if len(lis) > len(rev_lis) else rev_lis
   
-  return parser.parse_args()
+  q_begin, q_end = lis[0][0], lis[-1][0]
+  t_begin, t_end = lis[0][1], lis[-1][1]
 
-def load_file(file_path):
-  if not os.path.isfile(file_path):
-    print(f"Error: file '{file_path}' does not exist.", file=sys.stderr)
-    sys.exit(1)
-  file_extension = file_path.split('.')[-1]
-  with open(file_path, 'r') as file:
-    return file.read(), file_extension
+  log('Aligning region...', 1)
+  log(f'fragment_begin: {q_begin}, fragment_end: {q_end}, reference_begin: {t_begin}, reference_end: {t_end}', 2)
+  log(f'fragment length: {len(fragment)}', 2)
+  aligned_seq1, aligned_seq2, alignment_score = mapping.align_region(fragment[q_begin:q_end], reference_seq[t_begin:t_end])
+  
+  return fragment, 'reference_genome', q_begin, q_end, t_begin, t_end, aligned_seq1, aligned_seq2, alignment_score
 
-def analyze(file_path, file_type):
-  with open(file_path, 'r') as file:
-    log(f"Analyzing file {file_path}...")
-    contigs = list(SeqIO.parse(file, file_type))
-    contig_lengths = [len(record.seq) for record in contigs]
-    max_length = max(contig_lengths)
-    min_length = min(contig_lengths)
-    avg_length = sum(contig_lengths) / len(contig_lengths)
-    
-    sorted_lengths = sorted(contig_lengths, reverse=False)
-    total_length = sum(sorted_lengths)
-    half_total_length = total_length / 2
-    cumulative_length = 0
-    for length in sorted_lengths:
-      cumulative_length += length
-      if cumulative_length >= half_total_length:
-        n_50_length = length
-        break
-    
-    return len(contig_lengths), min_length, max_length, avg_length, n_50_length, contigs
-
-
-######################################################################################################################################################
 def main():
   current_time = datetime.datetime.now()
   output_filename = f'./output/output_{current_time.strftime("%Y-%m-%d_%H-%M-%S")}.txt'
-
-  global debug
   args = parse_arguments()
-  if args.debug:
-    debug = True
-    log("Debug mode is enabled.")    
   
-  # Load reference genome and fragments files
+  k = args.k if args.k else 5
+  w = args.w if args.w else 15
+  f = args.f if args.f else 0.001
+  debug = args.debug
+  threads = args.threads
+  cigar = args.cigar
   reference_filepath = args.reference
   fragments_filepath = args.fragments
+
+  log(f'--Using: k={k}, w={w}, f={f} debug={debug} threads={threads} cigar={cigar}', 0)
+  
+  # Load reference genome and fragments files
   reference, reference_filetype = load_file(reference_filepath)
   fragments, fragments_filetype = load_file(fragments_filepath)
-  
   # Adjust filetypes
   if reference_filetype in ['fasta', 'fas', 'fa', 'fna', 'ffn', 'faa', 'mpfa', 'frn']:
     reference_filetype = 'fasta'
@@ -85,67 +52,60 @@ def main():
     fragments_filetype = 'fastq'
   
   log("Input files loaded, filetypes (reference, fragments):")
-  log(reference_filetype, 1)
-  log(fragments_filetype, 1)
-  log("Contents of the files:")
-  log(f'{reference[0:10]}...', 1)
-  log(f'{fragments[0:10]}...', 1)
+  log(f'Reference: {reference_filetype}, Fragments: {fragments_filetype}', 1)
   
   stats_reference = analyze(reference_filepath, reference_filetype)
-  log(stats_reference[:-1], 1)
   write_output(f'STATS:\n(contig_count, min, max, avg, n_50)\n{str(stats_reference[:-1])}', output_filename)
   stats_fragment = analyze(fragments_filepath, fragments_filetype)
-  log(stats_fragment[:-1], 1)
   write_output(f'(contig_count, min, max, avg, n_50)\n{str(stats_fragment[:-1])}\n-------------------\n', output_filename)
 
+  #############################################################################
   
   reference_seq = stats_reference[-1][0].seq
-  fragments_seqs = [record.seq for record in stats_fragment[-1]]
+  all_fragments_seqs = [record.seq for record in stats_fragment[-1]]
   
-  # Align two random fragments
-  index_1 = random.randint(0, len(fragments_seqs)-1)
-  while len(fragments_seqs[index_1]) > 5000:
-    index_1 = random.randint(0, len(fragments_seqs)-1)
-  index_2 = random.randint(0, len(fragments_seqs)-1)
-  while index_2 == index_1 or len(fragments_seqs[index_2]) > 5000:
-    index_2 = random.randint(0, len(fragments_seqs)-1)
-  log('')
-  log('Found fragments to align...')
+  fragments_seqs = []
+  while len(fragments_seqs) < 4:
+    random_int = random.randint(0, len(stats_fragment[-1]))
+    if len(all_fragments_seqs[random_int]) <= 5000:
+      fragments_seqs.append(all_fragments_seqs[random_int])
   
-  log('Computing Global Alignment...', 1)
-  start_time = time.perf_counter()
-  _, global_score = alignment.needleman_wunsch(fragments_seqs[index_1], fragments_seqs[index_2])
-  end_time = time.perf_counter()
-  global_time = end_time - start_time
-
-  log('Computing Local Alignment...', 1)
-  start_time = time.perf_counter()
-  _, local_score = alignment.smith_waterman(fragments_seqs[index_1], fragments_seqs[index_2])
-  end_time = time.perf_counter()
-  local_time = end_time - start_time
+  #############################################################################
+  results = []
   
-  log('Computing Semi-Global Alignment...', 1)
-  start_time = time.perf_counter()
-  _, semi_score = alignment.semi_global(fragments_seqs[index_1], fragments_seqs[index_2])
-  end_time = time.perf_counter()
-  semi_time = end_time - start_time
+  log('Creating minimizer index for reference...')
+  minimizer_index = mapping.create_minimizer_index(reference_seq, k, w, f)
+  log('--------------------------------------')
   
-  write_output(f'''
-Alignment score of two random fragments:
-Fragment 1:
-\t{fragments_seqs[index_1]}
-Fragment 2:
-\t{fragments_seqs[index_2]}
-
-Global alignment score: {global_score} (time: {global_time:0.4f}s)
-Local alignment score: {local_score} (time: {local_time:0.4f}s)
-Semi-global alignment score: {semi_score} (time: {semi_time:0.4f}s)
--------------------
-''', output_filename)
-  log(f'{global_score, local_score, semi_score}', 1)
-  log(f'{global_time, local_time, semi_time}', 1)
-  
-
+  for index, fragment in enumerate(fragments_seqs):
+    log(f'Fragment {index+1} of {len(fragments_seqs)}...')
+    log('Finding minimizers for fragment...', 1)
+    fragment_minimizers = mapping.create_minimizer_index(fragment, k, w, f)
     
+    result = align_fragment(fragment, reference_seq, minimizer_index, fragment_minimizers, k, w, f)
+    results.append(result)
+    log(f'Done!', 1)
+  
+  # write_output('\n\nPAF:\n', output_filename)
+  # with ThreadPoolExecutor(max_workers=4) as executor:
+  #   future_to_fragment = {executor.submit(align_fragment, fragment, reference_seq, minimizer_index): fragment for fragment in fragments_seqs}
+  #   for future in as_completed(future_to_fragment):
+  #     try:
+  #       result = future.result()
+  #       results.append(result)
+  #     except Exception as exc:
+  #       log(f'Fragment generated an exception: {exc}')
+  
+  # Write results to the output file
+  for result in results:
+    # fragment, ref_name, q_begin, q_end, t_begin, t_end, aligned_seq1, aligned_seq2, alignment_score = result
+    # log('Printing PAF...')
+    # mapping.print_paf(fragment, ref_name, q_begin, q_end, t_begin, t_end, aligned_seq1, aligned_seq2, alignment_score)
+    # write_output(f'{fragment}\t{len(fragment)}\t{q_begin}\t{q_end}\t+\t{ref_name}\t{len(ref_name)}\t{t_begin}\t{t_end}\t{alignment_score}\t60', output_filename)
+    pass
+  
+  plot_mapped_genome(results, len(reference_seq))
+
+
 if __name__ == '__main__':
   main()

@@ -3,10 +3,6 @@ import os
 import sys
 from Bio import SeqIO
 
-
-def log(message, level=0):
-  global debug
-
 def log(message, level=0):
   debug = parse_arguments().debug
   if debug == True:
@@ -28,7 +24,7 @@ def parse_arguments():
   parser.add_argument('--threads', type=int, help="Number of threads to use.")
   parser.add_argument('--k', type=int, help="Value for parameter k.")
   parser.add_argument('--w', type=int, help="Value for parameter w.")
-  parser.add_argument('--f', type=int, help="Value for parameter f.")
+  parser.add_argument('--f', type=float, help="Value for parameter f.")
   
   return parser.parse_args()
 
@@ -42,7 +38,7 @@ def load_file(file_path):
 
 def analyze(file_path, file_type):
   with open(file_path, 'r') as file:
-    log(f"Analyzing file {file_path}...")
+    log(f"Analyzing file {file_path}...", 1)
     contigs = list(SeqIO.parse(file, file_type))
     contig_lengths = [len(record.seq) for record in contigs]
     max_length = max(contig_lengths)
