@@ -3,9 +3,12 @@ import os
 import sys
 from Bio import SeqIO
 
-debug = True
+
 def log(message, level=0):
   global debug
+
+def log(message, level=0):
+  debug = parse_arguments().debug
   if debug == True:
     indent = ''
     for _ in range(level):
@@ -21,6 +24,11 @@ def parse_arguments():
   parser.add_argument('--reference', required=True, help="Path to the reference genome file (FASTA format).")
   parser.add_argument('--fragments', required=True, help="Path to the fragments file (FASTA or FASTQ format).")
   parser.add_argument('--debug', action='store_true', help="Enable debug mode.")
+  parser.add_argument('--cigar', action='store_true', help="Include the CIGAR string in the output.")
+  parser.add_argument('--threads', type=int, help="Number of threads to use.")
+  parser.add_argument('--k', type=int, help="Value for parameter k.")
+  parser.add_argument('--w', type=int, help="Value for parameter w.")
+  parser.add_argument('--f', type=int, help="Value for parameter f.")
   
   return parser.parse_args()
 
