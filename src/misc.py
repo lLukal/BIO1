@@ -3,6 +3,10 @@ import os
 import sys
 from Bio import SeqIO
 
+
+def log(message, level=0):
+  global debug
+
 def log(message, level=0):
   debug = parse_arguments().debug
   if debug == True:

@@ -39,12 +39,6 @@ def needleman_wunsch(seq1, seq2, match=1, mismatch=-1, gap=-1):
       aligned_seq2 = seq2[j-1] + aligned_seq2
       j -= 1
   
-  # with open('temp.txt', 'w') as f:
-  #   f.write(f"{'Reference':<20}{'Fragment':<20}\n")
-  #   f.write(f"{'-' * 20}{'-' * 20}\n")
-  #   for ref_base, frag_base in zip(aligned_seq1, aligned_seq2):
-  #     f.write(f"{ref_base:<20}{frag_base:<20}\n")
-  
   alignment_score = score_matrix[m][n]
   return score_matrix, aligned_seq1, aligned_seq2, alignment_score
 
