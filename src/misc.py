@@ -56,3 +56,36 @@ def analyze(file_path, file_type):
         break
     
     return len(contig_lengths), min_length, max_length, avg_length, n_50_length, contigs
+  
+  
+###########################################################################################################################3
+
+def calculate_mapping_length(seq1, seq2):
+    """Calculate the mapping length (number of bases that are aligned and not gaps)."""
+    return sum(1 for a, b in zip(seq1, seq2) if a != '-' and b != '-')
+
+def calculate_number_of_matches(seq1, seq2):
+    """Calculate the number of matching bases."""
+    return sum(1 for a, b in zip(seq1, seq2) if a == b and a != '-' and b != '-')
+
+def write_paf(seq1, seq2, output_file, query_name="query", target_name="target"):
+    query_length = len(seq1.replace('-', ''))
+    target_length = len(seq2.replace('-', ''))
+    mapping_length = calculate_mapping_length(seq1, seq2)
+    number_of_matches = calculate_number_of_matches(seq1, seq2)
+    mapping_quality = 60  # Placeholder for mapping quality, this usually requires a more complex calculation
+
+    # Find the start and end positions
+    query_start = seq1.find(seq1.lstrip('-'))
+    query_end = len(seq1.rstrip('-'))
+    target_start = seq2.find(seq2.lstrip('-'))
+    target_end = len(seq2.rstrip('-'))
+
+    with open(output_file, 'w') as f:
+        f.write(f"#query_name\t#query_length\t#query_start\t#query_end\t+\t")
+        f.write(f"#target_name\t#target_length\t#target_start\t#target_end\t")
+        f.write(f"#number_of_matches\t#mapping_length\t#mapping_quality\n")
+        
+        f.write(f"{query_name}\t{query_length}\t{query_start}\t{query_end}\t+\t")
+        f.write(f"{target_name}\t{target_length}\t{target_start}\t{target_end}\t")
+        f.write(f"{number_of_matches}\t{mapping_length}\t{mapping_quality}\n")

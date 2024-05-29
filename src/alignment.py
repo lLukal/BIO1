@@ -1,7 +1,7 @@
 import numpy as np
 
 # Global Alignment - Needleman-Wunsch
-def needleman_wunsch(seq1, seq2, match=1, mismatch=-1, gap=-1):
+def needleman_wunsch(seq1, seq2, match=1, mismatch=-1, gap=-2):
   m, n = len(seq1), len(seq2)
   score_matrix = np.zeros((m+1, n+1))
   traceback_matrix = np.zeros((m+1, n+1), dtype=np.int8)
@@ -40,7 +40,7 @@ def needleman_wunsch(seq1, seq2, match=1, mismatch=-1, gap=-1):
       j -= 1
   
   alignment_score = score_matrix[m][n]
-  return score_matrix, aligned_seq1, aligned_seq2, alignment_score
+  return score_matrix, aligned_seq1, aligned_seq2, alignment_score, ''
 
 
 # Local Alignment - Smith-Waterman
@@ -81,7 +81,7 @@ def smith_waterman(seq1, seq2, match=1, mismatch=-1, gap=-1):
       j -= 1
   
   alignment_score = max_score
-  return score_matrix, aligned_seq1, aligned_seq2, alignment_score
+  return score_matrix, aligned_seq1, aligned_seq2, alignment_score, ''
 
 
 # Semi-Global Alignment
@@ -124,7 +124,7 @@ def semi_global(seq1, seq2, match=1, mismatch=-1, gap=-1):
       j -= 1
   
   alignment_score = max(np.max(score_matrix[m]), np.max(score_matrix[:, n]))
-  return score_matrix, aligned_seq1, aligned_seq2, alignment_score
+  return score_matrix, aligned_seq1, aligned_seq2, alignment_score, ''
 
 
 # # Example sequences

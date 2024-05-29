@@ -97,13 +97,17 @@ def longest_increasing_subsequence(matches):
 
 def align_region(fragment, ref_seq):
   # Use Needleman-Wunsch alignment algorithm on the specified region
-  _, aligned_seq1, aligned_seq2, alignment_score = needleman_wunsch(fragment, ref_seq)
-  return aligned_seq1, aligned_seq2, alignment_score
+  _, aligned_seq1, aligned_seq2, alignment_score, cigar = needleman_wunsch(fragment, ref_seq)
+  return aligned_seq1, aligned_seq2, alignment_score, cigar
 
-def print_paf(fragment, ref_name, q_begin, q_end, t_begin, t_end, aligned_seq1, aligned_seq2, alignment_score):
+def print_paf(fragment_lis, reference_lis, q_begin, q_end, t_begin, t_end, aligned_seq1, aligned_seq2, alignment_score, cigar, output_filename):
 #   print(f"{fragment}\t{len(fragment)}\t{q_begin}\t{q_end}\t+\t{ref_name}\t{len(ref_name)}\t{t_begin}\t{t_end}\t{alignment_score}\t60")
-  with open('./output/output.paf', 'a') as file:
-    file.write(f"{fragment}\t{len(fragment)}\t{q_begin}\t{q_end}\t+\t{ref_name}\t{len(ref_name)}\t{t_begin}\t{t_end}\t{alignment_score}\t60\n")
+  with open(output_filename, 'a') as file:
+    #{fragment}
     file.write(f"{aligned_seq1}\n")
     file.write(f"{aligned_seq2}\n")
-    file.write(f"\n")
+    file.write('<><><><><><><><><><><><><><><><><><>\n')
+    file.write(f"{fragment_lis}\n")
+    file.write(f"{reference_lis}\n")
+    file.write(f"\tAlignment Score: {alignment_score}\n")
+    file.write(f"{cigar}\n")

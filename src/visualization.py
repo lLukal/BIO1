@@ -8,7 +8,7 @@ def plot_mapped_genome(results, reference_length):
     
     # Plot each fragment as a horizontal line positioned below the reference genome
     for idx, result in enumerate(results):
-        fragment, ref_name, q_begin, q_end, t_begin, t_end, aligned_seq1, aligned_seq2, alignment_score = result
+        fragment_result, ref_name, q_begin, q_end, t_begin, t_end, aligned_seq1, aligned_seq2, alignment_score, cigar = result
         y_position = -(idx + 1)
         ax.plot([t_begin, t_end], [y_position, y_position], marker='o', label=f'Fragment {idx+1}')
 

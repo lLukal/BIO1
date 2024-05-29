@@ -1,8 +1,16 @@
 import mapping
-from misc import log, write_output, parse_arguments, load_file, analyze
+from misc import log, write_output, parse_arguments, load_file, analyze, write_paf
 from visualization import plot_mapped_genome
 import datetime
 import random
+import signal
+
+class TimeoutException(Exception):
+  pass
+  
+def signal_handler(signum, frame):
+  raise TimeoutException
+
 
 def align_fragment(fragment, reference_seq, minimizer_index, fragment_minimizers, k, w, f):
   log('Finding matches...', 1)
@@ -16,15 +24,20 @@ def align_fragment(fragment, reference_seq, minimizer_index, fragment_minimizers
   
   q_begin, q_end = lis[0][0], lis[-1][0]
   t_begin, t_end = lis[0][1], lis[-1][1]
-
+  
+  if t_begin > t_end:
+    t_begin, t_end = t_end, t_begin
+  
   log('Aligning region...', 1)
   log(f'fragment_begin: {q_begin}, fragment_end: {q_end}, reference_begin: {t_begin}, reference_end: {t_end}', 2)
-  log(f'fragment length: {len(fragment)}', 2)
-  aligned_seq1, aligned_seq2, alignment_score = mapping.align_region(fragment[q_begin:q_end], reference_seq[t_begin:t_end])
+  log(f'fragment length: {len(fragment)}, sequence part length: {len(reference_seq[t_begin:t_end])}', 2)
+  aligned_seq1, aligned_seq2, alignment_score, cigar = mapping.align_region(fragment[q_begin:q_end], reference_seq[t_begin:t_end])
   
-  return fragment, 'reference_genome', q_begin, q_end, t_begin, t_end, aligned_seq1, aligned_seq2, alignment_score
+  return fragment, 'reference_genome', q_begin, q_end, t_begin, t_end, aligned_seq1, aligned_seq2, alignment_score, cigar
 
 def main():
+  signal.signal(signal.SIGALRM, signal_handler)
+  max_time_per_iteration = 50
   current_time = datetime.datetime.now()
   output_filename = f'./output/output_{current_time.strftime("%Y-%m-%d_%H-%M-%S")}.txt'
   args = parse_arguments()
@@ -63,9 +76,10 @@ def main():
   
   reference_seq = stats_reference[-1][0].seq
   all_fragments_seqs = [record.seq for record in stats_fragment[-1]]
+  log(f'Number of fragments: {len(all_fragments_seqs)}', 1)
   
   fragments_seqs = []
-  while len(fragments_seqs) < 4:
+  while len(fragments_seqs) < 20:
     random_int = random.randint(0, len(stats_fragment[-1]))
     if len(all_fragments_seqs[random_int]) <= 5000:
       fragments_seqs.append(all_fragments_seqs[random_int])
@@ -77,14 +91,35 @@ def main():
   minimizer_index = mapping.create_minimizer_index(reference_seq, k, w, f)
   log('--------------------------------------')
   
+  count_fail = 0
+  count_success = 0
+  count_timeout = 0
+  count_except = 0
   for index, fragment in enumerate(fragments_seqs):
-    log(f'Fragment {index+1} of {len(fragments_seqs)}...')
-    log('Finding minimizers for fragment...', 1)
-    fragment_minimizers = mapping.create_minimizer_index(fragment, k, w, f)
-    
-    result = align_fragment(fragment, reference_seq, minimizer_index, fragment_minimizers, k, w, f)
-    results.append(result)
-    log(f'Done!', 1)
+    try:
+      signal.alarm(max_time_per_iteration)
+      log(f'Fragment {index+1} of {len(fragments_seqs)}...')
+      log('Finding minimizers for fragment...', 1)
+      fragment_minimizers = mapping.create_minimizer_index(fragment, k, w, f)
+      
+      result = align_fragment(fragment, reference_seq, minimizer_index, fragment_minimizers, k, w, f)
+      fragment_result, ref_name, q_begin, q_end, t_begin, t_end, aligned_seq1, aligned_seq2, alignment_score, cigar = result
+      mapping.print_paf(fragment_result[q_begin:q_end], reference_seq[t_begin:t_end], q_begin, q_end, t_begin, t_end, aligned_seq1, aligned_seq2, alignment_score, cigar, output_filename)
+      count_success += 1
+      
+      signal.alarm(0)
+      results.append(result)
+      log(f'Done!', 1)
+    except TimeoutException as exc:
+      log(f'---Fragment took too long to align---', 1)
+      count_timeout += 1
+      signal.alarm(0)
+    except Exception as exc:
+      log(f'---Fragment generated an exception: {exc}---', 1)
+      count_except += 1
+      signal.alarm(0)
+      
+  count_fail = count_except + count_timeout
   
   # write_output('\n\nPAF:\n', output_filename)
   # with ThreadPoolExecutor(max_workers=4) as executor:
@@ -97,12 +132,18 @@ def main():
   #       log(f'Fragment generated an exception: {exc}')
   
   # Write results to the output file
-  for result in results:
-    # fragment, ref_name, q_begin, q_end, t_begin, t_end, aligned_seq1, aligned_seq2, alignment_score = result
-    # log('Printing PAF...')
-    # mapping.print_paf(fragment, ref_name, q_begin, q_end, t_begin, t_end, aligned_seq1, aligned_seq2, alignment_score)
+  # for result in results:
+  #   fragment, ref_name, q_begin, q_end, t_begin, t_end, aligned_seq1, aligned_seq2, alignment_score, cigar = result
+  #   mapping.print_paf(fragment, ref_name, q_begin, q_end, t_begin, t_end, aligned_seq1, aligned_seq2, alignment_score, cigar, output_filename)
     # write_output(f'{fragment}\t{len(fragment)}\t{q_begin}\t{q_end}\t+\t{ref_name}\t{len(ref_name)}\t{t_begin}\t{t_end}\t{alignment_score}\t60', output_filename)
-    pass
+    # write_paf(aligned_seq1, aligned_seq2, './output/output.paf', query_name='fragment', target_name='reference_genome')
+  
+  write_output('--------------------------------------', output_filename)
+  write_output('Results:', output_filename)
+  write_output(f'successful: {count_success} / {len(fragments_seqs)} ({count_success / len(fragments_seqs) * 100:.2f}%)', output_filename)
+  write_output(f'failed: {count_fail} / {len(fragments_seqs)} ({count_fail / len(fragments_seqs) * 100:.2f}%)', output_filename)
+  write_output(f'\ttimeout: {count_timeout} / {len(fragments_seqs)} ({count_timeout / len(fragments_seqs) * 100:.2f}%)', output_filename)
+  write_output(f'\texceptions: {count_except} / {len(fragments_seqs)} ({count_except / len(fragments_seqs) * 100:.2f}%)', output_filename)
   
   plot_mapped_genome(results, len(reference_seq))
 
