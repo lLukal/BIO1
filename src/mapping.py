@@ -12,11 +12,11 @@ def find_top_frequent_minimizers(minimizer_counts, f):
   
   return minimizers_to_remove
 
-def create_minimizer_index(sequence, k, w, f):
+def create_minimizer_index(sequence, k, w, f,strand):
   minimizer_counts = defaultdict(int)
   minimizer_positions = defaultdict(list)
   
-  minimizers = find_minimizers(sequence, k, w)
+  minimizers = find_minimizers(sequence, k, w,strand)
   for minimizer, pos, strand, k, w in minimizers:
     minimizer_counts[minimizer] += 1
     minimizer_positions[minimizer].append((pos, strand))
@@ -29,12 +29,12 @@ def create_minimizer_index(sequence, k, w, f):
   
   return minimizer_positions
 
-def find_matches(fragment, k, w, f, minimizer_index, fragment_minimizers = None):
+def find_matches(fragment, k, w, f, minimizer_index, strand, fragment_minimizers=None):
   if fragment_minimizers is None:
-    fragment_minimizers = find_minimizers(fragment, k, w)
+    fragment_minimizers = create_minimizer_index(fragment, k, w, f,strand)
 
   matches = []
-  rev_matches = []
+  # rev_matches = []
   # seen_matches = set()
   # seen_rev_matches = set()
   
@@ -47,32 +47,45 @@ def find_matches(fragment, k, w, f, minimizer_index, fragment_minimizers = None)
           # if match not in seen_matches:
           matches.append(match)
           # seen_matches.add(match)
-      elif reverse_complement(minimizer) in minimizer_index:
-        for ref_pos, ref_strand in minimizer_index[reverse_complement(minimizer)]:
-          match = (pos, ref_pos, minimizer, strand, ref_strand)
-          # if match not in seen_rev_matches:
-          rev_matches.append(match)
-          # seen_rev_matches.add(match)
+      # elif reverse_complement(minimizer) in minimizer_index:
+      #   for ref_pos, ref_strand in minimizer_index[reverse_complement(minimizer)]:
+      #     match = (pos, ref_pos, minimizer, strand, ref_strand)
+      #     # if match not in seen_rev_matches:
+      #     rev_matches.append(match)
+      #     # seen_rev_matches.add(match)
 
   matches = sorted(matches, key=lambda x: (x[0], x[1]))
-  rev_matches = sorted(rev_matches, key=lambda x: (x[0], x[1]))
+  # rev_matches = sorted(rev_matches, key=lambda x: (x[0], x[1]))
   
-  return matches, rev_matches
+  return matches
   
 def longest_increasing_subsequence(matches):
   positions = [match[0] for match in matches]
+  ref_positions = [match[1] for match in matches]
+  minimizers = [match[2] for match in matches]
 
   n = len(positions)
   lis = []
   predecessors = [-1] * n
   lis_indices = []
 
+  last_index = -1
+
   for i, pos in enumerate(positions):
-    idx = bisect_left([positions[j] for j in lis_indices], pos)
+
+    if minimizers[i] == minimizers[i - 1]:
+      continue
+
+    if lis_indices and abs(ref_positions[i] - ref_positions[lis_indices[last_index]]) > 500:
+        break
     
+    idx = bisect_left([positions[j] for j in lis_indices], pos)
+
     if idx < len(lis_indices):
       lis_indices[idx] = i
+      last_index = idx
     else:
+      last_index = len(lis_indices)
       lis_indices.append(i)
     
     if idx > 0:

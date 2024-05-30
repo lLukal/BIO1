@@ -1,6 +1,7 @@
 import mapping
 from misc import log, write_output, parse_arguments, load_file, analyze, write_paf
 from visualization import plot_mapped_genome
+from minimizers import reverse_complement
 import datetime
 import random
 import signal
@@ -14,7 +15,8 @@ def signal_handler(signum, frame):
 
 def align_fragment(fragment, reference_seq, minimizer_index, fragment_minimizers, k, w, f):
   log('Finding matches...', 1)
-  matches, rev_matches = mapping.find_matches(fragment, k, w, f, minimizer_index, fragment_minimizers)
+  matches = mapping.find_matches(fragment, k, w, f, minimizer_index, "original",fragment_minimizers)
+  rev_matches = mapping.find_matches(reverse_complement(fragment), k, w, f, minimizer_index, "reverse_complement",None)
 
   log('Finding longest increasing subsequence...', 1)
   lis = mapping.longest_increasing_subsequence(matches)
@@ -79,7 +81,7 @@ def main():
   log(f'Number of fragments: {len(all_fragments_seqs)}', 1)
   
   fragments_seqs = []
-  while len(fragments_seqs) < 20:
+  while len(fragments_seqs) < 1:
     random_int = random.randint(0, len(stats_fragment[-1]))
     if len(all_fragments_seqs[random_int]) <= 5000:
       fragments_seqs.append(all_fragments_seqs[random_int])
@@ -88,7 +90,7 @@ def main():
   results = []
   
   log('Creating minimizer index for reference...')
-  minimizer_index = mapping.create_minimizer_index(reference_seq, k, w, f)
+  minimizer_index = mapping.create_minimizer_index(reference_seq, k, w, f,strand="original")
   log('--------------------------------------')
   
   count_fail = 0
@@ -97,17 +99,17 @@ def main():
   count_except = 0
   for index, fragment in enumerate(fragments_seqs):
     try:
-      signal.alarm(max_time_per_iteration)
+     # signal.alarm(max_time_per_iteration)
       log(f'Fragment {index+1} of {len(fragments_seqs)}...')
       log('Finding minimizers for fragment...', 1)
-      fragment_minimizers = mapping.create_minimizer_index(fragment, k, w, f)
+      fragment_minimizers = mapping.create_minimizer_index(fragment, k, w, f,"original")
       
       result = align_fragment(fragment, reference_seq, minimizer_index, fragment_minimizers, k, w, f)
       fragment_result, ref_name, q_begin, q_end, t_begin, t_end, aligned_seq1, aligned_seq2, alignment_score, cigar = result
       mapping.print_paf(fragment_result[q_begin:q_end], reference_seq[t_begin:t_end], q_begin, q_end, t_begin, t_end, aligned_seq1, aligned_seq2, alignment_score, cigar, output_filename)
       count_success += 1
       
-      signal.alarm(0)
+     # signal.alarm(0)
       results.append(result)
       log(f'Done!', 1)
     except TimeoutException as exc:
