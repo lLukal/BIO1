@@ -19,6 +19,11 @@ def align_fragment(fragment, reference_seq, minimizer_index, fragment_minimizers
   
   q_begin, q_end = lis[0][0], lis[-1][0]
   t_begin, t_end = lis[0][1], lis[-1][1]
+
+  q_begin = max(0, q_begin - 50)
+  q_end = min(len(fragment), q_end + 50)
+  t_begin = max(0, t_begin - 50)
+  t_end = min(len(reference_seq), t_end + 50)
   
   if t_begin > t_end:
     t_begin, t_end = t_end, t_begin
