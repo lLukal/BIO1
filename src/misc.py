@@ -57,6 +57,10 @@ def analyze(file_path, file_type):
     
     return len(contig_lengths), min_length, max_length, avg_length, n_50_length, contigs
   
+
+def reverse_complement(seq):
+  complement = {'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C'}
+  return ''.join(complement[base] for base in reversed(seq))
   
 ###########################################################################################################################3
 
@@ -68,7 +72,7 @@ def calculate_number_of_matches(seq1, seq2):
     """Calculate the number of matching bases."""
     return sum(1 for a, b in zip(seq1, seq2) if a == b and a != '-' and b != '-')
 
-def write_paf(seq1, seq2, output_file, query_name="query", target_name="target"):
+def write_paf(seq1, seq2, output_file, query_name="query", target_name="target",cigar=False):
     query_length = len(seq1.replace('-', ''))
     target_length = len(seq2.replace('-', ''))
     mapping_length = calculate_mapping_length(seq1, seq2)
@@ -81,11 +85,42 @@ def write_paf(seq1, seq2, output_file, query_name="query", target_name="target")
     target_start = seq2.find(seq2.lstrip('-'))
     target_end = len(seq2.rstrip('-'))
 
-    with open(output_file, 'w') as f:
+    with open(output_file, 'a') as f:
         f.write(f"#query_name\t#query_length\t#query_start\t#query_end\t+\t")
         f.write(f"#target_name\t#target_length\t#target_start\t#target_end\t")
         f.write(f"#number_of_matches\t#mapping_length\t#mapping_quality\n")
         
         f.write(f"{query_name}\t{query_length}\t{query_start}\t{query_end}\t+\t")
         f.write(f"{target_name}\t{target_length}\t{target_start}\t{target_end}\t")
-        f.write(f"{number_of_matches}\t{mapping_length}\t{mapping_quality}\n")
+        f.write(f"{number_of_matches}\t{mapping_length}\t{mapping_quality}\t")
+        if cigar:
+            f.write(f"cg:Z:{generate_cigar(seq1, seq2)}")
+        f.write("\n")
+
+def generate_cigar(seq1, seq2):
+    cigar = []
+    count = 0
+    last = None
+
+    for s1, s2 in zip(seq1, seq2):
+        if s1 == s2:
+            operation = 'M'  # Match
+        elif s1 == '-':
+            operation = 'I'  # Insertion
+        elif s2 == '-':
+            operation = 'D'  # Deletion
+        else:
+            operation = 'X'  # Mismatch
+
+        if operation == last:
+            count += 1
+        else:
+            if last is not None:
+                cigar.append(f'{count}{last}')
+            count = 1
+        last = operation
+
+    if last is not None:
+        cigar.append(f'{count}{last}')
+
+    return ''.join(cigar)

@@ -20,7 +20,6 @@ def plot_mapped_genome(results, reference_length):
     ax.legend(loc='upper right')
     ax.grid(True)
 
-    plt.savefig("output.png")
     # Display the plot
     plt.show()
 

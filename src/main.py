@@ -1,16 +1,9 @@
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import mapping
-from misc import log, write_output, parse_arguments, load_file, analyze, write_paf
+from misc import log, write_output, parse_arguments, load_file, analyze, write_paf,reverse_complement
 from visualization import plot_mapped_genome
-from minimizers import reverse_complement
 import datetime
 import random
-import signal
-
-class TimeoutException(Exception):
-  pass
-  
-def signal_handler(signum, frame):
-  raise TimeoutException
 
 
 def align_fragment(fragment, reference_seq, minimizer_index, fragment_minimizers, k, w, f):
@@ -37,18 +30,25 @@ def align_fragment(fragment, reference_seq, minimizer_index, fragment_minimizers
   
   return fragment, 'reference_genome', q_begin, q_end, t_begin, t_end, aligned_seq1, aligned_seq2, alignment_score, cigar
 
+def process_fragment(index,fragment,num_of_fragments,k,w,f,reference_seq,minimizer_index,output_filename):
+    log(f'Fragment {index+1} of {num_of_fragments}...')
+    log('Finding minimizers for fragment...', 1)
+    fragment_minimizers = mapping.create_minimizer_index(fragment, k, w, f,"original")
+      
+    result = align_fragment(fragment, reference_seq, minimizer_index, fragment_minimizers, k, w, f)
+    log(f'Done!', 1)
+    return result     
+
 def main():
-  signal.signal(signal.SIGALRM, signal_handler)
-  max_time_per_iteration = 50
   current_time = datetime.datetime.now()
   output_filename = f'./output/output_{current_time.strftime("%Y-%m-%d_%H-%M-%S")}.txt'
   args = parse_arguments()
   
-  k = args.k if args.k else 5
-  w = args.w if args.w else 15
+  k = args.k if args.k else 15
+  w = args.w if args.w else 5
   f = args.f if args.f else 0.001
   debug = args.debug
-  threads = args.threads
+  threads = args.threads if args.threads else 1
   cigar = args.cigar
   reference_filepath = args.reference
   fragments_filepath = args.fragments
@@ -81,7 +81,7 @@ def main():
   log(f'Number of fragments: {len(all_fragments_seqs)}', 1)
   
   fragments_seqs = []
-  while len(fragments_seqs) < 1:
+  while len(fragments_seqs) < 100:
     random_int = random.randint(0, len(stats_fragment[-1]))
     if len(all_fragments_seqs[random_int]) <= 5000:
       fragments_seqs.append(all_fragments_seqs[random_int])
@@ -93,60 +93,24 @@ def main():
   minimizer_index = mapping.create_minimizer_index(reference_seq, k, w, f,strand="original")
   log('--------------------------------------')
   
-  count_fail = 0
-  count_success = 0
-  count_timeout = 0
-  count_except = 0
-  for index, fragment in enumerate(fragments_seqs):
-    try:
-     # signal.alarm(max_time_per_iteration)
-      log(f'Fragment {index+1} of {len(fragments_seqs)}...')
-      log('Finding minimizers for fragment...', 1)
-      fragment_minimizers = mapping.create_minimizer_index(fragment, k, w, f,"original")
-      
-      result = align_fragment(fragment, reference_seq, minimizer_index, fragment_minimizers, k, w, f)
-      fragment_result, ref_name, q_begin, q_end, t_begin, t_end, aligned_seq1, aligned_seq2, alignment_score, cigar = result
-      mapping.print_paf(fragment_result[q_begin:q_end], reference_seq[t_begin:t_end], q_begin, q_end, t_begin, t_end, aligned_seq1, aligned_seq2, alignment_score, cigar, output_filename)
-      count_success += 1
-      
-     # signal.alarm(0)
-      results.append(result)
-      log(f'Done!', 1)
-    except TimeoutException as exc:
-      log(f'---Fragment took too long to align---', 1)
-      count_timeout += 1
-      signal.alarm(0)
-    except Exception as exc:
-      log(f'---Fragment generated an exception: {exc}---', 1)
-      count_except += 1
-      signal.alarm(0)
-      
-  count_fail = count_except + count_timeout
   
-  # write_output('\n\nPAF:\n', output_filename)
-  # with ThreadPoolExecutor(max_workers=4) as executor:
-  #   future_to_fragment = {executor.submit(align_fragment, fragment, reference_seq, minimizer_index): fragment for fragment in fragments_seqs}
-  #   for future in as_completed(future_to_fragment):
-  #     try:
-  #       result = future.result()
-  #       results.append(result)
-  #     except Exception as exc:
-  #       log(f'Fragment generated an exception: {exc}')
+  with ThreadPoolExecutor(max_workers=threads) as executor:
+    future_to_fragment = {executor.submit(process_fragment, index,fragment,len(fragments_seqs),k,w,f,reference_seq,minimizer_index,output_filename): fragment for index,fragment in enumerate(fragments_seqs)}
+    for future in as_completed(future_to_fragment):
+      try:
+        result = future.result()
+        results.append(result)
+      except Exception as exc:
+        log(f'Fragment generated an exception: {exc}')
+
+  for result in results:
+    fragment, ref_name, q_begin, q_end, t_begin, t_end, aligned_seq1, aligned_seq2, alignment_score, cigar_str = result
+
+    mapping.print_paf(fragment, ref_name, q_begin, q_end, t_begin, t_end, aligned_seq1, aligned_seq2, alignment_score, output_filename)
+    write_output(f'{fragment}\t{len(fragment)}\t{q_begin}\t{q_end}\t+\t{ref_name}\t{len(ref_name)}\t{t_begin}\t{t_end}\t{alignment_score}\t60', output_filename)
+    write_paf(aligned_seq1, aligned_seq2, './output/output.paf', query_name='fragment', target_name='reference_genome',cigar=True)
   
-  # Write results to the output file
-  # for result in results:
-  #   fragment, ref_name, q_begin, q_end, t_begin, t_end, aligned_seq1, aligned_seq2, alignment_score, cigar = result
-  #   mapping.print_paf(fragment, ref_name, q_begin, q_end, t_begin, t_end, aligned_seq1, aligned_seq2, alignment_score, cigar, output_filename)
-    # write_output(f'{fragment}\t{len(fragment)}\t{q_begin}\t{q_end}\t+\t{ref_name}\t{len(ref_name)}\t{t_begin}\t{t_end}\t{alignment_score}\t60', output_filename)
-    # write_paf(aligned_seq1, aligned_seq2, './output/output.paf', query_name='fragment', target_name='reference_genome')
-  
-  write_output('--------------------------------------', output_filename)
-  write_output('Results:', output_filename)
-  write_output(f'successful: {count_success} / {len(fragments_seqs)} ({count_success / len(fragments_seqs) * 100:.2f}%)', output_filename)
-  write_output(f'failed: {count_fail} / {len(fragments_seqs)} ({count_fail / len(fragments_seqs) * 100:.2f}%)', output_filename)
-  write_output(f'\ttimeout: {count_timeout} / {len(fragments_seqs)} ({count_timeout / len(fragments_seqs) * 100:.2f}%)', output_filename)
-  write_output(f'\texceptions: {count_except} / {len(fragments_seqs)} ({count_except / len(fragments_seqs) * 100:.2f}%)', output_filename)
-  
+   
   plot_mapped_genome(results, len(reference_seq))
 
 

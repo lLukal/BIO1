@@ -1,8 +1,8 @@
-from minimizers import find_minimizers, reverse_complement
+from minimizers import find_minimizers
 from collections import defaultdict, deque
 from alignment import needleman_wunsch, smith_waterman, semi_global
 from bisect import bisect_left
-from misc import log
+from misc import log,reverse_complement
 
 def find_top_frequent_minimizers(minimizer_counts, f):
   sorted_minimizers = sorted(minimizer_counts.items(), key=lambda x: x[1], reverse=True)
@@ -34,9 +34,6 @@ def find_matches(fragment, k, w, f, minimizer_index, strand, fragment_minimizers
     fragment_minimizers = create_minimizer_index(fragment, k, w, f,strand)
 
   matches = []
-  # rev_matches = []
-  # seen_matches = set()
-  # seen_rev_matches = set()
   
   for minimizer, appearances in fragment_minimizers.items():
     for appearance in appearances:
@@ -44,18 +41,9 @@ def find_matches(fragment, k, w, f, minimizer_index, strand, fragment_minimizers
       if minimizer in minimizer_index:
         for ref_pos, ref_strand in minimizer_index[minimizer]:
           match = (pos, ref_pos, minimizer, strand, ref_strand)
-          # if match not in seen_matches:
           matches.append(match)
-          # seen_matches.add(match)
-      # elif reverse_complement(minimizer) in minimizer_index:
-      #   for ref_pos, ref_strand in minimizer_index[reverse_complement(minimizer)]:
-      #     match = (pos, ref_pos, minimizer, strand, ref_strand)
-      #     # if match not in seen_rev_matches:
-      #     rev_matches.append(match)
-      #     # seen_rev_matches.add(match)
 
   matches = sorted(matches, key=lambda x: (x[0], x[1]))
-  # rev_matches = sorted(rev_matches, key=lambda x: (x[0], x[1]))
   
   return matches
   
@@ -113,7 +101,7 @@ def align_region(fragment, ref_seq):
   _, aligned_seq1, aligned_seq2, alignment_score, cigar = needleman_wunsch(fragment, ref_seq)
   return aligned_seq1, aligned_seq2, alignment_score, cigar
 
-def print_paf(fragment_lis, reference_lis, q_begin, q_end, t_begin, t_end, aligned_seq1, aligned_seq2, alignment_score, cigar, output_filename):
+def print_paf(fragment_lis, reference_lis, q_begin, q_end, t_begin, t_end, aligned_seq1, aligned_seq2, alignment_score,output_filename):
 #   print(f"{fragment}\t{len(fragment)}\t{q_begin}\t{q_end}\t+\t{ref_name}\t{len(ref_name)}\t{t_begin}\t{t_end}\t{alignment_score}\t60")
   with open(output_filename, 'a') as file:
     #{fragment}
@@ -123,4 +111,3 @@ def print_paf(fragment_lis, reference_lis, q_begin, q_end, t_begin, t_end, align
     file.write(f"{fragment_lis}\n")
     file.write(f"{reference_lis}\n")
     file.write(f"\tAlignment Score: {alignment_score}\n")
-    file.write(f"{cigar}\n")
