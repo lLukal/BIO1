@@ -8,4 +8,4 @@ pip install -r ./src/requirements.txt
 # conda install biopython
 
 # To get started, use:
-# bash run.sh --reference input/GCF_000005845.2_ASM584v2_genomic.fna --fragments input/MAP006-1_2D_pass.fasta --debug
+# bash run.sh --reference input/GCF_000005845.2_ASM584v2_genomic.fna --fragments input/MAP006-1_2D_pass.fasta --threads 4 --debug
